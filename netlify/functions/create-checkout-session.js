@@ -1,21 +1,18 @@
+// netlify/functions/create-checkout-session.js
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-/**
- * POST /.netlify/functions/create-checkout-session
- * body: { uid: string }  // το Firebase uid του user
- */
 export async function handler(event) {
-  // CORS
+  // CORS preflight
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Allow-Methods": "POST,OPTIONS"
-      }
+        "Access-Control-Allow-Methods": "POST,OPTIONS",
+      },
     };
   }
 
@@ -24,40 +21,59 @@ export async function handler(event) {
       return { statusCode: 405, body: "Method Not Allowed" };
     }
 
-    const { uid } = JSON.parse(event.body || "{}");
-    if (!uid) {
-      return { statusCode: 400, body: "Missing uid" };
-    }
-    if (!process.env.PRICE_ID) {
-      return { statusCode: 500, body: "PRICE_ID not configured" };
+    const { uid, plan } = JSON.parse(event.body || "{}");
+    if (!uid || !plan) {
+      return { statusCode: 400, body: "Missing uid or plan" };
     }
 
-    // URL που θα φορτώσει μετά την πληρωμή: success.html → deep-link πίσω στο app
+    // 🔎 Debug για να ξέρουμε τι βλέπει ο server
+    console.log("create-checkout-session → plan:", plan, {
+      hasFamily: !!process.env.FAMILY_SYNC,
+      hasTopUp: !!process.env.TOP_UP,
+      siteUrl: process.env.SITE_URL,
+    });
+
+    // ✅ Επιλογή priceId βάσει του plan και ΤΩΝ ΔΙΚΩΝ ΣΟΥ env vars
+    let priceId;
+    if (plan === "family") {
+      priceId = process.env.FAMILY_SYNC;   // 👈 ΧΡΗΣΙΜΟΠΟΙΕΙ το FAMILY_SYNC
+    } else if (plan === "topup") {
+      priceId = process.env.TOP_UP;        // 👈 ΧΡΗΣΙΜΟΠΟΙΕΙ το TOP_UP
+    } else {
+      return { statusCode: 400, body: "Invalid plan" };
+    }
+
+    if (!priceId) {
+      return {
+        statusCode: 500,
+        body: `Missing env var for ${plan} (FAMILY_SYNC ή TOP_UP)`,
+      };
+    }
+
     const successUrl = `${process.env.SITE_URL}/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${process.env.SITE_URL}/cancel`;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price: process.env.PRICE_ID, // π.χ. price_1SFO... (ΟΧΙ το product id)
-          quantity: 1
-        }
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
       client_reference_id: uid,
-      metadata: { uid },
+      metadata: { uid, plan },
       success_url: successUrl,
-      cancel_url: cancelUrl
+      cancel_url: cancelUrl,
     });
 
     return {
       statusCode: 200,
       headers: { "Access-Control-Allow-Origin": "*" },
-      body: JSON.stringify({ url: session.url })
+      body: JSON.stringify({ url: session.url }),
     };
   } catch (err) {
-    console.error(err);
-    return { statusCode: 500, body: "Server error" };
+    console.error("create-checkout-session error:", err);
+    return {
+      statusCode: 500,
+      headers: { "Access-Control-Allow-Origin": "*" },
+      body: `Server error: ${err.message}`,
+    };
   }
 }
