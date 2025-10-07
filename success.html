@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Returning to Family Budget…</title>
+  <style>body{font-family:system-ui,Arial;margin:24px} a,button{font-size:16px}</style>
+</head>
+<body>
+  <h2>Ευχαριστούμε! Ολοκλήρωση πληρωμής…</h2>
+  <p>Σε λίγο θα επιστρέψεις στην εφαρμογή.</p>
+  <p><a id="open" href="#">Άνοιγμα εφαρμογής τώρα</a></p>
+  <script>
+    const sid = new URLSearchParams(location.search).get("session_id");
+    const deep = "familybudget://purchase/success?session_id=" + encodeURIComponent(sid);
+    document.getElementById("open").href = deep;
+    // auto-redirect (με μικρή καθυστέρηση για iOS/Android)
+    setTimeout(()=>{ location.href = deep; }, 300);
+  </script>
+</body>
+</html>

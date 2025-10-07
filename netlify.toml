@@ -1,0 +1,17 @@
+[build]
+  functions = "netlify/functions"
+  command = "npm install"
+
+# φιλικές διαδρομές για τα success/cancel pages
+[[redirects]]
+  from = "/success"
+  to = "/success.html"
+  status = 200
+
+[[redirects]]
+  from = "/cancel"
+  to = "/cancel.html"
+  status = 200
+[functions]
+external_node_modules = ["stripe"]
+node_bundler = "esbuild"
